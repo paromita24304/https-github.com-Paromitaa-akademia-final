@@ -1,0 +1,13 @@
+{
+  "name": "akademia",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "project2-main-main"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=vite-react-typescript-starter -- --host 0.0.0.0",
+    "build": "npm run build --workspace=vite-react-typescript-starter",
+    "preview": "npm run preview --workspace=vite-react-typescript-starter -- --host 0.0.0.0"
+  }
+}
