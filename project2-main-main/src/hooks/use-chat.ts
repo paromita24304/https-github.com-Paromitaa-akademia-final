@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { apiRequest } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/providers/auth-provider';
 import { generateResponse, generateTitle } from '@/lib/ai-engine';
 
@@ -28,12 +28,17 @@ export function useChat() {
   const [streamingText, setStreamingText] = useState('');
   const streamTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Load conversation list from Go backend
+  // Load conversation list from Supabase
   const loadConversations = useCallback(async () => {
     if (!user) return;
     try {
-      const data = await apiRequest('/chat/conversations');
-      if (data) {
+      const { data, error } = await supabase
+        .from('chat_conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+
+      if (!error && data) {
         setConversations(data as ChatConversation[]);
       }
     } catch (err) {
@@ -47,12 +52,31 @@ export function useChat() {
     loadConversations();
   }, [loadConversations]);
 
-  // Load messages for a conversation from Go backend
+  // Realtime: refresh conversation list when any conversation changes
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('chat_conversations_changes')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'chat_conversations', filter: `user_id=eq.${user.id}` },
+        () => { loadConversations(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user, loadConversations]);
+
+  // Load messages for a conversation from Supabase
   const loadMessages = useCallback(async (conversationId: string) => {
     setLoadingMessages(true);
     try {
-      const data = await apiRequest(`/chat/conversations/${conversationId}/messages`);
-      if (data) {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
         setMessages(data as ChatMessage[]);
       }
     } catch (err) {
@@ -69,6 +93,26 @@ export function useChat() {
       setMessages([]);
     }
   }, [activeConversationId, loadMessages]);
+
+  // Realtime: append new messages as they arrive
+  useEffect(() => {
+    if (!activeConversationId) return;
+    const channel = supabase
+      .channel(`chat_messages_${activeConversationId}`)
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `conversation_id=eq.${activeConversationId}` },
+        (payload) => {
+          const newMsg = payload.new as ChatMessage;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [activeConversationId]);
 
   // Stream text character-by-character
   const streamResponse = useCallback((fullText: string, onComplete: () => void) => {
@@ -87,7 +131,7 @@ export function useChat() {
     }, 16);
   }, []);
 
-  // Send a message via Go backend
+  // Send a message via Supabase
   const sendMessage = useCallback(
     async (text: string) => {
       if (!user || !text.trim() || sending) return;
@@ -99,47 +143,65 @@ export function useChat() {
         // Create conversation if none active
         if (!convId) {
           const title = generateTitle(text);
-          const newConv = await apiRequest('/chat/conversations', {
-            method: 'POST',
-            body: JSON.stringify({ title }),
-          });
+          const { data: newConv, error: convError } = await supabase
+            .from('chat_conversations')
+            .insert({ user_id: user.id, title })
+            .select()
+            .single();
 
-          if (!newConv || !newConv.id) {
+          if (convError || !newConv) {
             setSending(false);
             return;
           }
 
-          convId = newConv.id;
+          convId = (newConv as ChatConversation).id;
           setActiveConversationId(convId);
           setConversations((prev) => [newConv as ChatConversation, ...prev]);
         }
 
-        // Post user message to Go backend
-        const userMsg = await apiRequest(`/chat/conversations/${convId}/messages`, {
-          method: 'POST',
-          body: JSON.stringify({ role: 'user', content: text }),
-        });
+        // Post user message to Supabase
+        const { data: userMsg, error: userMsgError } = await supabase
+          .from('chat_messages')
+          .insert({
+            conversation_id: convId,
+            user_id: user.id,
+            role: 'user',
+            content: text,
+          })
+          .select()
+          .single();
 
-        if (userMsg) {
+        if (!userMsgError && userMsg) {
           setMessages((prev) => [...prev, userMsg as ChatMessage]);
         }
 
         // Generate AI response
         const aiContent = generateResponse(text);
 
-        // Stream the response visually, then save assistant message to Go backend
+        // Stream the response visually, then save assistant message to Supabase
         streamResponse(aiContent, async () => {
           try {
-            const aiMsg = await apiRequest(`/chat/conversations/${convId}/messages`, {
-              method: 'POST',
-              body: JSON.stringify({ role: 'assistant', content: aiContent }),
-            });
+            const { data: aiMsg, error: aiError } = await supabase
+              .from('chat_messages')
+              .insert({
+                conversation_id: convId,
+                user_id: user.id,
+                role: 'assistant',
+                content: aiContent,
+              })
+              .select()
+              .single();
 
-            if (aiMsg) {
+            if (!aiError && aiMsg) {
               setMessages((prev) => [...prev, aiMsg as ChatMessage]);
             }
 
-            // Refresh conversation list order or updated timestamp if needed
+            // Update conversation updated_at
+            await supabase
+              .from('chat_conversations')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', convId);
+
             loadConversations();
           } catch (err) {
             console.error('Failed to save AI message:', err);
@@ -164,17 +226,21 @@ export function useChat() {
     setSending(false);
   }, []);
 
-  // Delete conversation via Go backend
+  // Delete conversation via Supabase
   const deleteConversation = useCallback(
     async (conversationId: string) => {
       if (!user) return;
       try {
-        await apiRequest(`/chat/conversations/${conversationId}`, {
-          method: 'DELETE',
-        });
-        setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-        if (activeConversationId === conversationId) {
-          newConversation();
+        const { error } = await supabase
+          .from('chat_conversations')
+          .delete()
+          .eq('id', conversationId);
+
+        if (!error) {
+          setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+          if (activeConversationId === conversationId) {
+            newConversation();
+          }
         }
       } catch (err) {
         console.error('Failed to delete conversation:', err);

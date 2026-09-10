@@ -24,7 +24,7 @@ export function useLessonNotes(courseId: string, lessonId: string) {
           .eq('user_id', user.id)
           .eq('course_id', courseId)
           .eq('lesson_id', lessonId)
-          .single();
+          .maybeSingle();
 
         if (!cancelled && !error && data && data.content) {
           setContent(data.content);
@@ -36,7 +36,30 @@ export function useLessonNotes(courseId: string, lessonId: string) {
       }
     })();
 
-    return () => { cancelled = true; };
+    // Realtime: sync note changes from other devices
+    const channel = supabase
+      .channel(`lesson_notes_${lessonId}_${user.id}`)
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lesson_notes',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as { content: string; lesson_id: string; course_id: string };
+            if (row.lesson_id !== lessonId || row.course_id !== courseId) return;
+            setContent(row.content);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [user, courseId, lessonId]);
 
   const save = useCallback(
@@ -46,12 +69,14 @@ export function useLessonNotes(courseId: string, lessonId: string) {
       setSaved(false);
 
       try {
-        await supabase.from('lesson_notes').upsert({
+        const { error } = await supabase.from('lesson_notes').upsert({
           user_id: user.id,
           course_id: courseId,
           lesson_id: lessonId,
           content: text,
         }, { onConflict: 'user_id,lesson_id' });
+
+        if (error) throw error;
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       } catch (err) {

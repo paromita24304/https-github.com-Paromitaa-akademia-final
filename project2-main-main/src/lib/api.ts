@@ -1,7 +1,7 @@
 const API_BASE_URL = 'http://localhost:8081/api';
 
 export async function apiRequest(endpoint: string, options: RequestOptions = {}) {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('akademia-token');
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',

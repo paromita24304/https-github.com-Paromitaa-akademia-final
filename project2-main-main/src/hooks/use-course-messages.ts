@@ -36,7 +36,31 @@ export function useCourseMessages(courseId: string) {
       }
     })();
 
-    return () => { cancelled = true; };
+    // Realtime: listen for new messages (e.g. instructor replies on another device)
+    const channel = supabase
+      .channel(`course_messages_${courseId}_${user.id}`)
+      .on('postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'course_messages',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as CourseMessage;
+          if (newMsg.course_id !== courseId) return;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [user, courseId]);
 
   const sendMessage = useCallback(

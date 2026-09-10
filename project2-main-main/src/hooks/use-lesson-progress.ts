@@ -40,7 +40,42 @@ export function useLessonProgress(courseId: string) {
       }
     })();
 
-    return () => { cancelled = true; };
+    // Realtime: sync progress changes from other devices/sessions
+    const channel = supabase
+      .channel(`lesson_progress_${courseId}_${user.id}`)
+      .on('postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'lesson_progress',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            const row = payload.new as ProgressRow & { course_id: string };
+            if (row.course_id !== courseId) return;
+            setCompletedLessons((prev) => {
+              const next = new Set(prev);
+              if (row.completed) next.add(row.lesson_id);
+              else next.delete(row.lesson_id);
+              return next;
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const row = payload.old as ProgressRow & { course_id: string };
+            setCompletedLessons((prev) => {
+              const next = new Set(prev);
+              next.delete(row.lesson_id);
+              return next;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [user, courseId]);
 
   const toggleLesson = useCallback(
@@ -55,7 +90,7 @@ export function useLessonProgress(courseId: string) {
       });
 
       try {
-        await supabase
+        const { error } = await supabase
           .from('lesson_progress')
           .upsert({
             user_id: user.id,
@@ -64,6 +99,8 @@ export function useLessonProgress(courseId: string) {
             completed,
             completed_at: completed ? new Date().toISOString() : null,
           }, { onConflict: 'user_id,lesson_id' });
+
+        if (error) throw error;
       } catch (err) {
         console.error('Failed to update lesson progress:', err);
         setCompletedLessons((prev) => {
