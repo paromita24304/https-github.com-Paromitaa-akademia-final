@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
-import { TrendingUp, Sparkles, ArrowUpRight, Target } from 'lucide-react';
+import { TrendingUp, Sparkles, ArrowUpRight, Target, BookOpen, Award } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { extendedSkills } from '@/lib/practice-data';
+import { useLessonProgress } from '@/hooks/use-lesson-progress';
+import { getAllLessons } from '@/lib/course-utils';
+import { courses } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import {
   Radar,
@@ -14,16 +16,23 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
 } from 'recharts';
-import type { Skill } from '@/types';
 
-const categoryAccents: Record<string, string> = {
-  'AI & ML': 'text-teal',
-  Languages: 'text-primary',
-  Frameworks: 'text-indigo',
-  Math: 'text-info',
-  Infrastructure: 'text-warning',
-};
+interface CourseSkill {
+  courseId: string;
+  courseTitle: string;
+  category: string;
+  tags: string[];
+  progress: number;
+  lessonsCompleted: number;
+  totalLessons: number;
+}
 
 function proficiencyColor(p: number): string {
   if (p >= 80) return 'bg-success';
@@ -39,43 +48,87 @@ function proficiencyLabel(p: number): string {
   return 'Beginner';
 }
 
+const categoryAccents: Record<string, string> = {
+  'AI & ML': 'text-teal',
+  'Data Science': 'text-info',
+  'Web Development': 'text-primary',
+  Math: 'text-warning',
+  Languages: 'text-primary',
+  Frameworks: 'text-indigo',
+  Infrastructure: 'text-warning',
+};
+
 export function SkillsPage() {
-  const categories = useMemo(() => {
-    const groups: Record<string, Skill[]> = {};
-    for (const skill of extendedSkills) {
-      if (!groups[skill.category]) groups[skill.category] = [];
-      groups[skill.category].push(skill);
-    }
-    return Object.entries(groups);
-  }, []);
-
-  const radarData = useMemo(() => {
-    return Object.entries(
-      extendedSkills.reduce<Record<string, number[]>>((acc, skill) => {
-        if (!acc[skill.category]) acc[skill.category] = [];
-        acc[skill.category].push(skill.proficiency);
-        return acc;
-      }, {})
-    ).map(([category, values]) => ({
-      category,
-      proficiency: Math.round(values.reduce((s, v) => s + v, 0) / values.length),
-    }));
-  }, []);
-
-  const avgProficiency = Math.round(
-    extendedSkills.reduce((s, skill) => s + skill.proficiency, 0) / extendedSkills.length
-  );
-
-  const skillGaps = useMemo(
-    () => extendedSkills.filter((s) => s.proficiency < 60).sort((a, b) => a.proficiency - b.proficiency),
+  const enrolledCourses = useMemo(
+    () => courses.filter((c) => c.status !== 'not-started'),
     []
   );
+
+  const courseSkills: CourseSkill[] = enrolledCourses.map((c) => {
+    const allLessons = getAllLessons(c);
+    return {
+      courseId: c.id,
+      courseTitle: c.title,
+      category: c.category,
+      tags: c.tags,
+      progress: c.progress,
+      lessonsCompleted: allLessons.filter((l) => l.completed).length,
+      totalLessons: allLessons.length,
+    };
+  });
+
+  const tagStats = useMemo(() => {
+    const tagMap: Record<string, { totalProgress: number; count: number; courses: string[] }> = {};
+    for (const cs of courseSkills) {
+      for (const tag of cs.tags) {
+        if (!tagMap[tag]) tagMap[tag] = { totalProgress: 0, count: 0, courses: [] };
+        tagMap[tag].totalProgress += cs.progress;
+        tagMap[tag].count += 1;
+        tagMap[tag].courses.push(cs.courseTitle);
+      }
+    }
+    return Object.entries(tagMap)
+      .map(([tag, data]) => ({
+        tag,
+        avgProficiency: Math.round(data.totalProgress / data.count),
+        courseCount: data.count,
+        courses: data.courses,
+      }))
+      .sort((a, b) => b.avgProficiency - a.avgProficiency);
+  }, [courseSkills]);
+
+  const categoryStats = useMemo(() => {
+    const catMap: Record<string, { totalProgress: number; count: number }> = {};
+    for (const cs of courseSkills) {
+      if (!catMap[cs.category]) catMap[cs.category] = { totalProgress: 0, count: 0 };
+      catMap[cs.category].totalProgress += cs.progress;
+      catMap[cs.category].count += 1;
+    }
+    return Object.entries(catMap).map(([category, data]) => ({
+      category,
+      proficiency: Math.round(data.totalProgress / data.count),
+      courseCount: data.count,
+    }));
+  }, [courseSkills]);
+
+  const avgProficiency = courseSkills.length > 0
+    ? Math.round(courseSkills.reduce((s, c) => s + c.progress, 0) / courseSkills.length)
+    : 0;
+
+  const totalLessonsCompleted = courseSkills.reduce((s, c) => s + c.lessonsCompleted, 0);
+  const totalLessons = courseSkills.reduce((s, c) => s + c.totalLessons, 0);
+
+  const skillGaps = tagStats.filter((s) => s.avgProficiency < 60);
+
+  const radarData = categoryStats;
+
+  const barData = tagStats.slice(0, 8);
 
   return (
     <div className="space-y-8 animate-in-slide">
       <PageHeader
         title="Skills"
-        description="Your growing skill graph, mapped across domains."
+        description="Skill statistics computed from your enrolled courses and progress."
         actions={
           <Button size="sm" variant="outline">
             <Sparkles className="mr-2 h-4 w-4 text-teal" />
@@ -88,8 +141,8 @@ export function SkillsPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Skill radar</CardTitle>
-            <CardDescription>Average proficiency across domains</CardDescription>
+            <CardTitle className="text-base">Skill radar by course category</CardTitle>
+            <CardDescription>Average course progress across domains</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -121,28 +174,26 @@ export function SkillsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Overview</CardTitle>
-            <CardDescription>At a glance</CardDescription>
+            <CardDescription>From your enrolled courses</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg bg-muted/30 p-4">
-              <p className="text-xs text-muted-foreground">Average proficiency</p>
+              <p className="text-xs text-muted-foreground">Average course progress</p>
               <p className="mt-1 text-3xl font-bold text-foreground tabular-nums">{avgProficiency}%</p>
               <Progress value={avgProficiency} className="mt-2 h-2" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-border p-3">
-                <p className="text-xs text-muted-foreground">Total skills</p>
-                <p className="mt-1 text-xl font-bold text-foreground tabular-nums">{extendedSkills.length}</p>
+                <p className="text-xs text-muted-foreground">Enrolled courses</p>
+                <p className="mt-1 text-xl font-bold text-foreground tabular-nums">{courseSkills.length}</p>
               </div>
               <div className="rounded-lg border border-border p-3">
-                <p className="text-xs text-muted-foreground">Expert level</p>
-                <p className="mt-1 text-xl font-bold text-foreground tabular-nums">
-                  {extendedSkills.filter((s) => s.proficiency >= 80).length}
-                </p>
+                <p className="text-xs text-muted-foreground">Lessons done</p>
+                <p className="mt-1 text-xl font-bold text-foreground tabular-nums">{totalLessonsCompleted}</p>
               </div>
               <div className="rounded-lg border border-border p-3">
-                <p className="text-xs text-muted-foreground">Categories</p>
-                <p className="mt-1 text-xl font-bold text-foreground tabular-nums">{categories.length}</p>
+                <p className="text-xs text-muted-foreground">Total lessons</p>
+                <p className="mt-1 text-xl font-bold text-foreground tabular-nums">{totalLessons}</p>
               </div>
               <div className="rounded-lg border border-border p-3">
                 <p className="text-xs text-muted-foreground">Skill gaps</p>
@@ -153,42 +204,74 @@ export function SkillsPage() {
         </Card>
       </div>
 
-      {/* Skill bars by category */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        {categories.map(([category, skills]) => (
-          <Card key={category}>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <TrendingUp className={cn('h-4 w-4', categoryAccents[category] ?? 'text-primary')} />
-                {category}
-              </CardTitle>
-              <CardDescription>{skills.length} skills tracked</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {skills.map((skill) => (
-                <div key={skill.id}>
-                  <div className="mb-1.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">{skill.name}</span>
-                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                        {proficiencyLabel(skill.proficiency)}
-                      </Badge>
+      {/* Skill tags bar chart */}
+      {barData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Skill proficiency by tag</CardTitle>
+            <CardDescription>Average progress across courses tagged with each skill</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={barData} margin={{ left: -10, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="tag" stroke="hsl(var(--muted-foreground))" fontSize={11} angle={-20} textAnchor="end" height={60} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} domain={[0, 100]} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                  }}
+                  cursor={{ fill: 'hsl(var(--muted))', fillOpacity: 0.3 }}
+                />
+                <Bar dataKey="avgProficiency" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Course breakdown */}
+      <div>
+        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
+          <BookOpen className="h-5 w-5 text-primary" />
+          Course progress breakdown
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {courseSkills.map((cs) => (
+            <Card key={cs.courseId}>
+              <CardContent className="p-5">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">{cs.courseTitle}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <Badge variant="outline" className="text-[10px]">{cs.category}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {cs.lessonsCompleted}/{cs.totalLessons} lessons
+                      </span>
                     </div>
-                    <span className="text-xs font-medium tabular-nums text-muted-foreground">
-                      {skill.proficiency}%
-                    </span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn('h-full rounded-full transition-all', proficiencyColor(skill.proficiency))}
-                      style={{ width: `${skill.proficiency}%` }}
-                    />
+                  <div className="text-right">
+                    <p className="text-2xl font-bold tabular-nums text-foreground">{cs.progress}%</p>
+                    <Badge variant="outline" className={cn('mt-1 text-[10px]', proficiencyColor(cs.progress), 'border-0 text-white')}>
+                      {proficiencyLabel(cs.progress)}
+                    </Badge>
                   </div>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
+                <Progress value={cs.progress} className="h-2" />
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {cs.tags.map((tag) => (
+                    <span key={tag} className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
 
       {/* Skill gaps */}
@@ -199,20 +282,23 @@ export function SkillsPage() {
               <Target className="h-4 w-4 text-warning" />
               Skill gaps to address
             </CardTitle>
-            <CardDescription>Areas where focused practice would boost your profile</CardDescription>
+            <CardDescription>Skills where your course progress is below 60%</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {skillGaps.map((skill) => (
               <div
-                key={skill.id}
+                key={skill.tag}
                 className="flex items-center gap-4 rounded-lg border border-border bg-card p-3"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-foreground">{skill.name}</p>
-                    <span className="text-xs tabular-nums text-muted-foreground">{skill.proficiency}%</span>
+                    <p className="text-sm font-medium text-foreground">{skill.tag}</p>
+                    <span className="text-xs tabular-nums text-muted-foreground">{skill.avgProficiency}%</span>
                   </div>
-                  <Progress value={skill.proficiency} className="mt-1.5 h-1.5" />
+                  <Progress value={skill.avgProficiency} className="mt-1.5 h-1.5" />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    From {skill.courseCount} course{skill.courseCount > 1 ? 's' : ''}
+                  </p>
                 </div>
                 <Button size="sm" variant="outline" className="shrink-0">
                   Improve
@@ -220,6 +306,23 @@ export function SkillsPage() {
                 </Button>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {courseSkills.length === 0 && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="grid h-16 w-16 place-items-center rounded-2xl bg-muted">
+              <BookOpen className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="mt-4 text-lg font-semibold text-foreground">No courses enrolled yet</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Enroll in courses to see your skill statistics here.
+            </p>
+            <Button asChild className="mt-4" size="sm">
+              <a href="/student/browse">Browse courses</a>
+            </Button>
           </CardContent>
         </Card>
       )}

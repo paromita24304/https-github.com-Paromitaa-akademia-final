@@ -6,7 +6,7 @@ import {
   Sparkles,
   Compass,
   BookOpen,
-  Route,
+  TrendingUp,
   Trophy,
   Settings,
   Moon,
@@ -73,13 +73,8 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
               />
               <CommandItem
                 icon={<Sparkles className="h-4 w-4 text-primary" />}
-                label="Generate a practice quiz"
-                onSelect={() => go('/student/quizzes')}
-              />
-              <CommandItem
-                icon={<Sparkles className="h-4 w-4 text-primary" />}
-                label="Build me a learning path"
-                onSelect={() => go('/student/paths')}
+                label="Analyze my skill gaps"
+                onSelect={() => go('/student/skills')}
               />
             </CommandPrimitive.Group>
 
@@ -98,9 +93,9 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
                 onSelect={() => go('/student/my-courses')}
               />
               <CommandItem
-                icon={<Route className="h-4 w-4 text-muted-foreground" />}
-                label="Learning Paths"
-                onSelect={() => go('/student/paths')}
+                icon={<TrendingUp className="h-4 w-4 text-muted-foreground" />}
+                label="Skills"
+                onSelect={() => go('/student/skills')}
               />
               <CommandItem
                 icon={<Trophy className="h-4 w-4 text-muted-foreground" />}

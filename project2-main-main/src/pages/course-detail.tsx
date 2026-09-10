@@ -15,7 +15,7 @@ import {
   FileText,
   Video,
   ListChecks,
-  FlaskConical,
+  ClipboardCheck,
   MessageSquare,
   Award,
   Globe,
@@ -37,7 +37,7 @@ const lessonTypeIcon: Record<Lesson['type'], typeof Video> = {
   video: Video,
   reading: FileText,
   quiz: ListChecks,
-  lab: FlaskConical,
+  assignment: ClipboardCheck,
   'ai-coaching': MessageSquare,
 };
 

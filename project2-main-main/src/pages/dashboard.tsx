@@ -7,11 +7,11 @@ import {
   ArrowRight,
   Sparkles,
   BookOpen,
-  Brain,
   CheckCircle2,
   PlayCircle,
-  Zap as ZapIcon,
   Award,
+  TrendingUp,
+  Target,
   MessageSquare,
 } from 'lucide-react';
 import {
@@ -24,33 +24,30 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PageHeader } from '@/components/common/page-header';
 import { StatCard } from '@/components/common/stat-card';
-import { CourseCard } from '@/components/common/course-card';
-import { EmptyState } from '@/components/common/empty-state';
-import { Logo } from '@/components/common/logo';
 import {
   currentUser,
   stats,
   courses,
-  learningPaths,
-  skills,
   achievements,
   recentActivity,
   aiConversations,
   weeklyActivity,
 } from '@/lib/mock-data';
+import { useLessonProgress } from '@/hooks/use-lesson-progress';
+import { getAllLessons } from '@/lib/course-utils';
 import { formatNumber, relativeTime, getIcon, initials } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
 const activityIcon = {
   'lesson-completed': { icon: CheckCircle2, class: 'bg-success/10 text-success' },
   'course-started': { icon: PlayCircle, class: 'bg-info/10 text-info' },
+  'course-completed': { icon: Trophy, class: 'bg-success/10 text-success' },
   achievement: { icon: Trophy, class: 'bg-warning/10 text-warning' },
-  'quiz-passed': { icon: Brain, class: 'bg-primary/10 text-primary' },
+  'quiz-passed': { icon: Target, class: 'bg-primary/10 text-primary' },
   'ai-coaching': { icon: Sparkles, class: 'bg-teal/10 text-teal' },
-  streak: { icon: ZapIcon, class: 'bg-destructive/10 text-destructive' },
+  streak: { icon: Zap, class: 'bg-destructive/10 text-destructive' },
 } as const;
 
 const rarityStyles: Record<string, string> = {
@@ -62,14 +59,16 @@ const rarityStyles: Record<string, string> = {
 
 export function DashboardPage() {
   const inProgress = courses.filter((c) => c.status === 'in-progress');
+  const completed = courses.filter((c) => c.status === 'completed');
   const continueCourse = inProgress[0];
   const weeklyPct = Math.round((stats.weeklyAchievedMinutes / stats.weeklyGoalMinutes) * 100);
+  const unlockedAchievements = achievements.filter((a) => a.unlockedAt !== null);
 
   return (
-    <div className="space-y-8 animate-in-slide">
+    <div className="space-y-6 animate-in-slide">
       <PageHeader
         title={`Welcome back, ${currentUser.name.split(' ')[0]}`}
-        description="Pick up where you left off — your AI coach has new insights ready."
+        description="Here's a summary of your learning journey."
         actions={
           <>
             <Button variant="outline" size="sm" asChild>
@@ -88,7 +87,7 @@ export function DashboardPage() {
         }
       />
 
-      {/* Stats */}
+      {/* Stats row */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Courses completed"
@@ -122,54 +121,8 @@ export function DashboardPage() {
 
       {/* Continue learning + weekly goal */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {continueCourse && (
-          <Card className="relative col-span-1 overflow-hidden lg:col-span-2">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-indigo/5" />
-            <CardContent className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
-              <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-lg sm:w-56">
-                <img
-                  src={continueCourse.thumbnailUrl}
-                  alt={continueCourse.title}
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute inset-0 grid place-items-center bg-black/30">
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-background/90 shadow-lg transition-transform hover:scale-110">
-                    <PlayCircle className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-              </div>
-              <div className="min-w-0 flex-1">
-                <Badge className="mb-2 gap-1 bg-primary/10 text-primary hover:bg-primary/10">
-                  <Sparkles className="h-3 w-3" />
-                  Continue learning
-                </Badge>
-                <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                  {continueCourse.title}
-                </h2>
-                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                  {continueCourse.subtitle}
-                </p>
-                <div className="mt-4">
-                  <div className="mb-1.5 flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">
-                      Module 2 · Lesson 2 of 3
-                    </span>
-                    <span className="font-medium text-foreground">{continueCourse.progress}%</span>
-                  </div>
-                  <Progress value={continueCourse.progress} className="h-1.5" />
-                </div>
-                <Button className="mt-4" size="sm" asChild>
-                  <Link to={`/student/courses/${continueCourse.slug}`}>
-                    Resume lesson
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        {continueCourse && <ContinueLearningCard course={continueCourse} />}
 
-        {/* Weekly goal ring */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Weekly goal</CardTitle>
@@ -204,29 +157,57 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* In progress courses */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            In progress
-          </h2>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
-            <Link to="/student/my-courses">
-              View all
-              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-            </Link>
-          </Button>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {inProgress.map((c) => (
-            <CourseCard key={c.id} course={c} />
-          ))}
-        </div>
-      </section>
+      {/* Course overview: ongoing + completed side by side */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <PlayCircle className="h-4 w-4 text-primary" />
+                In progress
+              </CardTitle>
+              <CardDescription>{inProgress.length} courses</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
+              <Link to="/student/my-courses">
+                View all
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {inProgress.slice(0, 3).map((c) => (
+              <MiniCourseRow key={c.id} course={c} />
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                Completed
+              </CardTitle>
+              <CardDescription>{completed.length} courses</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
+              <Link to="/student/my-courses">
+                View all
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {completed.slice(0, 3).map((c) => (
+              <MiniCourseRow key={c.id} course={c} completed />
+            ))}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* AI coach + activity */}
       <div className="grid gap-4 lg:grid-cols-3">
-        {/* AI conversations */}
         <Card className="lg:col-span-1">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div className="space-y-1.5">
@@ -264,7 +245,6 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Recent activity */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base">Recent activity</CardTitle>
@@ -272,12 +252,12 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ol className="relative space-y-1">
-              {recentActivity.map((act, i) => {
+              {recentActivity.slice(0, 5).map((act, i) => {
                 const cfg = activityIcon[act.type];
                 const Icon = cfg.icon;
                 return (
                   <li key={act.id} className="relative flex gap-3 pb-4 last:pb-0">
-                    {i < recentActivity.length - 1 && (
+                    {i < Math.min(recentActivity.length, 5) - 1 && (
                       <span className="absolute left-[15px] top-8 h-[calc(100%-1.5rem)] w-px bg-border" />
                     )}
                     <div className={cn('z-10 grid h-8 w-8 shrink-0 place-items-center rounded-full', cfg.class)}>
@@ -298,91 +278,41 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Learning paths */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold tracking-tight text-foreground">
-            Your learning paths
-          </h2>
-          <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
-            <Link to="/student/paths">
-              View all
-              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-            </Link>
-          </Button>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {learningPaths.map((path) => (
-            <Link
-              key={path.id}
-              to={`/student/paths/${path.slug}`}
-              className="group relative overflow-hidden rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-foreground/5"
-            >
-              <div className="relative h-28 overflow-hidden">
-                <img
-                  src={path.thumbnailUrl}
-                  alt={path.title}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-card via-card/40 to-transparent" />
-                {path.aiGenerated && (
-                  <Badge className="absolute right-3 top-3 gap-1 border-0 bg-background/90 backdrop-blur">
-                    <Sparkles className="h-3 w-3 text-teal" />
-                    AI-curated
-                  </Badge>
-                )}
-              </div>
-              <div className="p-4">
-                <h3 className="font-semibold text-foreground transition-colors group-hover:text-primary">
-                  {path.title}
-                </h3>
-                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                  {path.description}
-                </p>
-                <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                  <span>{path.courseCount} courses · {path.estimatedWeeks}w</span>
-                  <span className="font-medium text-foreground">{path.progress}%</span>
-                </div>
-                <Progress value={path.progress} className="mt-2 h-1.5" />
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* Skills + Achievements */}
+      {/* Skills + Achievements summary */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Skill progress</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Skill progress
+            </CardTitle>
             <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
               <Link to="/student/skills">Details</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {skills.slice(0, 5).map((skill) => (
-              <div key={skill.id}>
-                <div className="mb-1.5 flex items-center justify-between text-sm">
-                  <span className="font-medium text-foreground">{skill.name}</span>
-                  <span className="text-muted-foreground tabular-nums">{skill.proficiency}%</span>
-                </div>
-                <Progress value={skill.proficiency} className="h-1.5" />
-              </div>
-            ))}
+            {courses
+              .filter((c) => c.status !== 'not-started')
+              .slice(0, 4)
+              .map((c) => (
+                <CourseSkillBar key={c.id} course={c} />
+              ))}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">Achievements</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Trophy className="h-4 w-4 text-warning" />
+              Recent achievements
+            </CardTitle>
             <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
               <Link to="/student/achievements">All</Link>
             </Button>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
-              {achievements.map((ach) => {
+              {unlockedAchievements.slice(0, 4).map((ach) => {
                 const Icon = getIcon(ach.icon);
                 return (
                   <div
@@ -407,30 +337,110 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
 
-      {/* Design system footer showcase */}
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
-          <Logo size="lg" showWordmark={false} />
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">Design system ready</p>
-            <p className="text-xs text-muted-foreground">
-              Navbar, sidebar, theme toggle, toasts, skeletons, empty states, and routing are all wired up.
-            </p>
-          </div>
-          <EmptyState
-            icon={Sparkles}
-            title="This is an empty state"
-            description="Used when there's nothing to show yet — with an optional action below."
-            action={
-              <Button size="sm" variant="outline">
-                Example action
-              </Button>
-            }
-            className="w-full max-w-md border-0 bg-transparent py-0"
+function ContinueLearningCard({ course }: { course: typeof courses[number] }) {
+  const { completedLessons } = useLessonProgress(course.id);
+  const allLessons = getAllLessons(course);
+  const completed = allLessons.filter((l) => completedLessons.has(l.id)).length;
+  const total = allLessons.length;
+  const pct = total > 0 ? Math.round((completed / total) * 100) : course.progress;
+  const lastCompletedIdx = allLessons.reduce((last, l, i) => (completedLessons.has(l.id) ? i : last), -1);
+  const resumeLesson = allLessons[Math.min(lastCompletedIdx + 1, total - 1)] ?? allLessons[0];
+
+  return (
+    <Card className="relative col-span-1 overflow-hidden lg:col-span-2">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-teal/5" />
+      <CardContent className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center">
+        <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-lg sm:w-56">
+          <img
+            src={course.thumbnailUrl}
+            alt={course.title}
+            className="h-full w-full object-cover"
           />
-        </CardContent>
-      </Card>
+          <div className="absolute inset-0 grid place-items-center bg-black/30">
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-background/90 shadow-lg transition-transform hover:scale-110">
+              <PlayCircle className="h-6 w-6 text-primary" />
+            </div>
+          </div>
+        </div>
+        <div className="min-w-0 flex-1">
+          <Badge className="mb-2 gap-1 bg-primary/10 text-primary hover:bg-primary/10">
+            <Sparkles className="h-3 w-3" />
+            Continue learning
+          </Badge>
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            {course.title}
+          </h2>
+          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+            {course.subtitle}
+          </p>
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {completed} of {total} lessons completed
+              </span>
+              <span className="font-medium text-foreground">{pct}%</span>
+            </div>
+            <Progress value={pct} className="h-1.5" />
+          </div>
+          <Button className="mt-4" size="sm" asChild>
+            <Link to={`/student/courses/${course.slug}/learn?lesson=${resumeLesson?.id ?? ''}`}>
+              Resume lesson
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniCourseRow({ course, completed }: { course: typeof courses[number]; completed?: boolean }) {
+  const { completedLessons } = useLessonProgress(course.id);
+  const allLessons = getAllLessons(course);
+  const done = allLessons.filter((l) => completedLessons.has(l.id)).length;
+  const total = allLessons.length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : course.progress;
+
+  return (
+    <Link
+      to={completed ? `/student/courses/${course.slug}` : `/student/courses/${course.slug}/learn`}
+      className="group flex items-center gap-3 rounded-lg border border-border p-3 transition-colors hover:bg-accent"
+    >
+      <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md">
+        <img src={course.thumbnailUrl} alt={course.title} className="h-full w-full object-cover" />
+        {completed && (
+          <div className="absolute inset-0 grid place-items-center bg-success/20">
+            <CheckCircle2 className="h-5 w-5 text-white" />
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground group-hover:text-primary">{course.title}</p>
+        <p className="text-xs text-muted-foreground">{completed ? 'Completed' : `${pct}% complete`}</p>
+      </div>
+      {!completed && <Progress value={pct} className="h-1.5 w-16" />}
+    </Link>
+  );
+}
+
+function CourseSkillBar({ course }: { course: typeof courses[number] }) {
+  const { completedLessons } = useLessonProgress(course.id);
+  const allLessons = getAllLessons(course);
+  const done = allLessons.filter((l) => completedLessons.has(l.id)).length;
+  const total = allLessons.length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : course.progress;
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between text-sm">
+        <span className="truncate font-medium text-foreground">{course.title}</span>
+        <span className="ml-2 shrink-0 text-muted-foreground tabular-nums">{pct}%</span>
+      </div>
+      <Progress value={pct} className="h-1.5" />
     </div>
   );
 }

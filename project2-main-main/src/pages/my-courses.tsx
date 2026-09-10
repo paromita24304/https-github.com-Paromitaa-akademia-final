@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Search, Clock, CircleCheck as CheckCircle2, CirclePlay as PlayCircle, Circle, Award, Trophy, ArrowRight, Download, Lock, TrendingUp } from 'lucide-react';
+import { BookOpen, Search, Clock, CircleCheck as CheckCircle2, CirclePlay as PlayCircle, Circle, Award, Trophy, ArrowRight, Download, Lock, TrendingUp, Flame, Target, Brain, Footprints, Zap, Sparkles, Rocket } from 'lucide-react';
 import { PageHeader } from '@/components/common/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,14 +8,34 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { courses, courseCertificates, achievements } from '@/lib/mock-data';
+import { courses, courseCertificates } from '@/lib/mock-data';
+import { extendedAchievements } from '@/lib/practice-data';
 import { useLessonProgress } from '@/hooks/use-lesson-progress';
 import { getAllLessons } from '@/lib/course-utils';
 import { formatDuration, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { Course, CourseCertificate } from '@/types';
+import type { Course, CourseCertificate, Achievement } from '@/types';
 
 type TabKey = 'ongoing' | 'completed' | 'pending';
+
+const achievementIconMap: Record<string, typeof Trophy> = {
+  Flame,
+  Brain,
+  Footprints,
+  Zap,
+  Sparkles,
+  Rocket,
+  Target,
+  Trophy,
+  Award,
+};
+
+const rarityBadge: Record<Achievement['rarity'], string> = {
+  common: 'bg-muted text-muted-foreground border-border',
+  rare: 'bg-info/10 text-info border-info/20',
+  epic: 'bg-indigo/10 text-indigo border-indigo/20',
+  legendary: 'bg-warning/10 text-warning border-warning/20',
+};
 
 export function MyCoursesPage() {
   const [tab, setTab] = useState<TabKey>('ongoing');
@@ -148,13 +168,13 @@ function CompletedSection({
     return <EmptyState search="" />;
   }
 
+  const allUnlockedAchievements = extendedAchievements.filter((a) => a.unlockedAt !== null);
+
   return (
     <div className="space-y-8">
       {completedCourses.map((course) => {
         const cert = certificates.find((c) => c.courseId === course.id);
-        const courseAchievements = achievements.filter(
-          (a) => a.unlockedAt !== null
-        );
+        const courseAchievements = allUnlockedAchievements.slice(0, 3 + Math.floor(course.progress / 50));
         return (
           <div key={course.id} className="space-y-4">
             <Card className="overflow-hidden">
@@ -209,6 +229,7 @@ function CompletedSection({
                   </div>
                 </div>
 
+                {/* Certificate details */}
                 {cert && (
                   <div className="border-t border-border bg-info/5 p-4">
                     <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -229,30 +250,67 @@ function CompletedSection({
               </CardContent>
             </Card>
 
+            {/* Achievement history for this course */}
             {courseAchievements.length > 0 && (
-              <div className="ml-1 space-y-2">
+              <div className="ml-1 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Achievements earned in this course
+                  Achievement history in this course
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {courseAchievements.map((ach) => (
-                    <div
-                      key={ach.id}
-                      className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5"
-                    >
-                      <Trophy className="h-3.5 w-3.5 text-warning" />
-                      <span className="text-sm font-medium text-foreground">{ach.title}</span>
-                      <Badge variant="outline" className="text-[10px] capitalize text-muted-foreground">
-                        {ach.rarity}
-                      </Badge>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  {courseAchievements.map((ach, idx) => {
+                    const Icon = achievementIconMap[ach.icon] ?? Trophy;
+                    return (
+                      <div
+                        key={ach.id}
+                        className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+                      >
+                        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-muted">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{ach.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">{ach.description}</p>
+                        </div>
+                        <Badge variant="outline" className={cn('text-[10px] capitalize', rarityBadge[ach.rarity])}>
+                          {ach.rarity}
+                        </Badge>
+                        {ach.unlockedAt && (
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            {new Date(ach.unlockedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
         );
       })}
+
+      {/* Overall achievement summary */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10">
+              <Trophy className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground">Total achievements unlocked</h3>
+              <p className="text-sm text-muted-foreground">
+                {allUnlockedAchievements.length} achievements across {completedCourses.length} completed courses
+              </p>
+            </div>
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/student/achievements">
+                View all
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
