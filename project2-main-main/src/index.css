@@ -205,3 +205,91 @@
     100% { background-position: -200% 0; }
   }
 }
+
+
+/* Student portal — warm, more expressive learning palette */
+@layer base {
+  .student-portal {
+    --background: 258 48% 98%;
+    --foreground: 252 31% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 252 31% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 252 31% 16%;
+
+    --primary: 257 84% 59%;
+    --primary-foreground: 0 0% 100%;
+    --indigo: 282 78% 60%;
+    --indigo-foreground: 0 0% 100%;
+    --teal: 174 72% 36%;
+    --teal-foreground: 0 0% 100%;
+
+    --secondary: 258 38% 95%;
+    --secondary-foreground: 252 31% 20%;
+    --muted: 255 30% 95%;
+    --muted-foreground: 251 12% 45%;
+    --accent: 330 100% 96%;
+    --accent-foreground: 330 62% 34%;
+
+    --success: 156 63% 38%;
+    --warning: 30 94% 53%;
+    --info: 201 89% 49%;
+    --border: 255 30% 90%;
+    --input: 255 26% 87%;
+    --ring: 257 84% 59%;
+
+    --chart-1: 257 84% 59%;
+    --chart-2: 330 82% 62%;
+    --chart-3: 174 72% 36%;
+    --chart-4: 30 94% 53%;
+    --chart-5: 201 89% 49%;
+
+    --sidebar-background: 257 50% 98%;
+    --sidebar-foreground: 252 31% 20%;
+    --sidebar-border: 255 30% 90%;
+    --sidebar-accent: 257 86% 94%;
+    --sidebar-accent-foreground: 257 70% 35%;
+  }
+
+  .student-portal main {
+    background:
+      radial-gradient(circle at 92% 0%, hsl(330 100% 94% / 0.72), transparent 27rem),
+      radial-gradient(circle at 4% 18%, hsl(174 76% 93% / 0.65), transparent 24rem),
+      hsl(var(--background));
+  }
+
+  .dark .student-portal {
+    --background: 254 28% 9%;
+    --foreground: 258 38% 95%;
+    --card: 254 25% 12%;
+    --card-foreground: 258 38% 95%;
+    --popover: 254 25% 12%;
+    --popover-foreground: 258 38% 95%;
+
+    --primary: 258 89% 69%;
+    --primary-foreground: 258 30% 10%;
+    --indigo: 286 82% 70%;
+    --teal: 174 65% 46%;
+    --secondary: 254 20% 17%;
+    --muted: 254 20% 17%;
+    --muted-foreground: 252 15% 66%;
+    --accent: 330 42% 18%;
+    --accent-foreground: 330 80% 82%;
+    --border: 254 19% 21%;
+    --input: 254 19% 23%;
+    --ring: 258 89% 69%;
+
+    --sidebar-background: 254 29% 8%;
+    --sidebar-foreground: 258 32% 88%;
+    --sidebar-border: 254 18% 18%;
+    --sidebar-accent: 258 42% 18%;
+    --sidebar-accent-foreground: 258 80% 85%;
+  }
+
+  .dark .student-portal main {
+    background:
+      radial-gradient(circle at 92% 0%, hsl(286 64% 22% / 0.55), transparent 28rem),
+      radial-gradient(circle at 4% 20%, hsl(174 52% 17% / 0.52), transparent 24rem),
+      hsl(var(--background));
+  }
+}
