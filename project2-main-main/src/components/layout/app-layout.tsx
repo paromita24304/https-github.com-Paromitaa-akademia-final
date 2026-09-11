@@ -3,12 +3,15 @@ import { Outlet } from 'react-router-dom';
 import { Navbar } from '@/components/layout/navbar';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import { useAuth } from '@/components/providers/auth-provider';
 
 export function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { user } = useAuth();
+  const portalClass = user?.role === 'student' ? 'student-portal' : '';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className={`flex h-screen overflow-hidden bg-background ${portalClass}`}>
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 border-r border-sidebar-border lg:block">
         <Sidebar />
