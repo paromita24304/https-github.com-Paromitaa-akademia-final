@@ -8,10 +8,10 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { courses, courseCertificates } from '@/lib/mock-data';
+import { courseCertificates } from '@/lib/mock-data';
 import { extendedAchievements } from '@/lib/practice-data';
 import { useLessonProgress } from '@/hooks/use-lesson-progress';
-import { getAllLessons, getEnrolledCourseIds } from '@/lib/course-utils';
+import { getAllLessons, getStudentCourses } from '@/lib/course-utils';
 import { formatDuration, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Course, CourseCertificate, Achievement } from '@/types';
@@ -40,21 +40,10 @@ const rarityBadge: Record<Achievement['rarity'], string> = {
 export function MyCoursesPage() {
   const [tab, setTab] = useState<TabKey>('ongoing');
   const [search, setSearch] = useState('');
-  const enrolledCourseIds = getEnrolledCourseIds();
-  const enrollmentKey = enrolledCourseIds.join(',');
-
-  const ongoing = useMemo(
-    () => courses.filter((course) => course.status === 'in-progress' || enrolledCourseIds.includes(course.id)),
-    [enrollmentKey]
-  );
-  const completed = useMemo(
-    () => courses.filter((course) => course.status === 'completed'),
-    []
-  );
-  const pending = useMemo(
-    () => courses.filter((course) => course.status === 'not-started' && !enrolledCourseIds.includes(course.id)),
-    [enrollmentKey]
-  );
+  const studentCourses = getStudentCourses();
+  const ongoing = studentCourses.filter((course) => course.status === 'in-progress');
+  const completed = studentCourses.filter((course) => course.status === 'completed');
+  const pending = studentCourses.filter((course) => course.status === 'not-started');
 
   const filtered = useMemo(() => {
     let source: Course[];
@@ -86,7 +75,7 @@ export function MyCoursesPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <QuickStat icon={PlayCircle} label="Ongoing" value={ongoing.length} accent="text-primary bg-primary/10" />
         <QuickStat icon={CheckCircle2} label="Completed" value={completed.length} accent="text-success bg-success/10" />
-        <QuickStat icon={Lock} label="Saved" value={pending.length} accent="text-warning bg-warning/10" />
+        <QuickStat icon={Lock} label="Pending" value={pending.length} accent="text-warning bg-warning/10" />
         <QuickStat
           icon={Award}
           label="Certificates"
