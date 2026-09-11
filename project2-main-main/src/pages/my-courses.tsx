@@ -394,7 +394,7 @@ function PendingCourseRow({ course }: { course: Course }) {
           </div>
         </div>
         <Button size="sm" variant="outline" asChild>
-          <Link to={`/student/courses/${course.slug}`}>
+          <Link to={`/student/courses/${course.slug}/learn`}>
             Start course
             <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Link>
