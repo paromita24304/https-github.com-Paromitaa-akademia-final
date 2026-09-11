@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useLessonProgress } from '@/hooks/use-lesson-progress';
-import { getAllLessons } from '@/lib/course-utils';
-import { courses } from '@/lib/mock-data';
+import { getAllLessons, getDemoCompletedLessonIds, getStudentCourses } from '@/lib/course-utils';
 import { cn } from '@/lib/utils';
 import {
   Radar,
@@ -59,20 +58,18 @@ const categoryAccents: Record<string, string> = {
 };
 
 export function SkillsPage() {
-  const enrolledCourses = useMemo(
-    () => courses.filter((c) => c.status !== 'not-started'),
-    []
-  );
+  const enrolledCourses = getStudentCourses().filter((course) => course.status !== 'not-started');
 
-  const courseSkills: CourseSkill[] = enrolledCourses.map((c) => {
-    const allLessons = getAllLessons(c);
+  const courseSkills: CourseSkill[] = enrolledCourses.map((course) => {
+    const allLessons = getAllLessons(course);
+    const completedIds = new Set(getDemoCompletedLessonIds(course.id));
     return {
-      courseId: c.id,
-      courseTitle: c.title,
-      category: c.category,
-      tags: c.tags,
-      progress: c.progress,
-      lessonsCompleted: allLessons.filter((l) => l.completed).length,
+      courseId: course.id,
+      courseTitle: course.title,
+      category: course.category,
+      tags: course.tags,
+      progress: course.progress,
+      lessonsCompleted: allLessons.filter((lesson) => completedIds.has(lesson.id)).length,
       totalLessons: allLessons.length,
     };
   });
