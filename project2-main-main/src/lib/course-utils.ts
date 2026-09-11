@@ -29,6 +29,40 @@ export function isCourseEnrolled(course: Course): boolean {
   return course.status !== 'not-started' || readEnrollmentIds().includes(course.id);
 }
 
+const PROGRESS_KEY = 'akademia-demo-progress';
+
+function readSavedProgress(): Record<string, string[]> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch {
+    return {};
+  }
+}
+
+export function getDemoCompletedLessonIds(courseId: string): string[] {
+  const course = courses.find((item) => item.id === courseId);
+  if (!course) return [];
+
+  const lessons = withCourseExperience(course).modules.flatMap((module) => module.lessons);
+  const builtInCompleted = course.status === 'completed'
+    ? lessons.map((lesson) => lesson.id)
+    : lessons.filter((lesson) => lesson.completed).map((lesson) => lesson.id);
+  const savedCompleted = readSavedProgress()[courseId] ?? [];
+  return [...new Set([...builtInCompleted, ...savedCompleted])];
+}
+
+export function saveDemoLessonCompletion(courseId: string, lessonId: string, completed: boolean): void {
+  if (typeof window === 'undefined') return;
+  const progress = readSavedProgress();
+  const lessonIds = new Set(progress[courseId] ?? []);
+  if (completed) lessonIds.add(lessonId);
+  else lessonIds.delete(lessonId);
+  progress[courseId] = [...lessonIds];
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+}
+
 function starterCurriculum(course: Course): Module[] {
   const prefix = course.id.replace(/[^a-z0-9]/gi, '');
   const lessons: Lesson[] = [
