@@ -18,6 +18,7 @@ const customInstructorNavGroups = [
       { label: 'Grading', to: '/instructor/grading', icon: 'GraduationCap' },
       { label: 'Students', to: '/instructor/students', icon: 'Users' },
       { label: 'Discussions', to: '/instructor/discussions', icon: 'MessageSquare' },
+      { label: 'Course Feedback', to: '/instructor/feedback', icon: 'MessageSquare' },
       { label: 'AI Content Tools', to: '/instructor/ai-tools', icon: 'Sparkles', badge: 'AI' },
     ],
   },
