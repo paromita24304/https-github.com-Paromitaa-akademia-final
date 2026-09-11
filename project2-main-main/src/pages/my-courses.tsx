@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { courses, courseCertificates } from '@/lib/mock-data';
 import { extendedAchievements } from '@/lib/practice-data';
 import { useLessonProgress } from '@/hooks/use-lesson-progress';
-import { getAllLessons } from '@/lib/course-utils';
+import { getAllLessons, getEnrolledCourseIds } from '@/lib/course-utils';
 import { formatDuration, formatNumber } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Course, CourseCertificate, Achievement } from '@/types';
@@ -40,18 +40,20 @@ const rarityBadge: Record<Achievement['rarity'], string> = {
 export function MyCoursesPage() {
   const [tab, setTab] = useState<TabKey>('ongoing');
   const [search, setSearch] = useState('');
+  const enrolledCourseIds = getEnrolledCourseIds();
+  const enrollmentKey = enrolledCourseIds.join(',');
 
   const ongoing = useMemo(
-    () => courses.filter((c) => c.status === 'in-progress'),
-    []
+    () => courses.filter((course) => course.status === 'in-progress' || enrolledCourseIds.includes(course.id)),
+    [enrollmentKey]
   );
   const completed = useMemo(
-    () => courses.filter((c) => c.status === 'completed'),
+    () => courses.filter((course) => course.status === 'completed'),
     []
   );
   const pending = useMemo(
-    () => courses.filter((c) => c.status === 'not-started' && c.progress === 0),
-    []
+    () => courses.filter((course) => course.status === 'not-started' && !enrolledCourseIds.includes(course.id)),
+    [enrollmentKey]
   );
 
   const filtered = useMemo(() => {
