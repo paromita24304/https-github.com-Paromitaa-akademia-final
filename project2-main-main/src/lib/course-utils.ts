@@ -2,6 +2,7 @@ import type { Course, Lesson, Module } from '@/types';
 import { courses } from '@/lib/mock-data';
 
 const ENROLLMENTS_KEY = 'akademia-demo-enrollments';
+const PROGRESS_KEY = 'akademia-demo-progress';
 const DEMO_VIDEO_URL = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
 
 function readEnrollmentIds(): string[] {
@@ -11,6 +12,16 @@ function readEnrollmentIds(): string[] {
     return Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [];
   } catch {
     return [];
+  }
+}
+
+function readSavedProgress(): Record<string, string[]> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}');
+    return saved && typeof saved === 'object' ? saved : {};
+  } catch {
+    return {};
   }
 }
 
@@ -27,40 +38,6 @@ export function enrollInCourse(courseId: string): void {
 
 export function isCourseEnrolled(course: Course): boolean {
   return course.status !== 'not-started' || readEnrollmentIds().includes(course.id);
-}
-
-const PROGRESS_KEY = 'akademia-demo-progress';
-
-function readSavedProgress(): Record<string, string[]> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const saved = JSON.parse(localStorage.getItem(PROGRESS_KEY) ?? '{}');
-    return saved && typeof saved === 'object' ? saved : {};
-  } catch {
-    return {};
-  }
-}
-
-export function getDemoCompletedLessonIds(courseId: string): string[] {
-  const course = courses.find((item) => item.id === courseId);
-  if (!course) return [];
-
-  const lessons = withCourseExperience(course).modules.flatMap((module) => module.lessons);
-  const builtInCompleted = course.status === 'completed'
-    ? lessons.map((lesson) => lesson.id)
-    : lessons.filter((lesson) => lesson.completed).map((lesson) => lesson.id);
-  const savedCompleted = readSavedProgress()[courseId] ?? [];
-  return [...new Set([...builtInCompleted, ...savedCompleted])];
-}
-
-export function saveDemoLessonCompletion(courseId: string, lessonId: string, completed: boolean): void {
-  if (typeof window === 'undefined') return;
-  const progress = readSavedProgress();
-  const lessonIds = new Set(progress[courseId] ?? []);
-  if (completed) lessonIds.add(lessonId);
-  else lessonIds.delete(lessonId);
-  progress[courseId] = [...lessonIds];
-  localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
 }
 
 function starterCurriculum(course: Course): Module[] {
@@ -98,13 +75,56 @@ function starterCurriculum(course: Course): Module[] {
   return [{ id: `${prefix}_starter`, title: 'Getting started', lessons }];
 }
 
+function courseModules(course: Course): Module[] {
+  return course.modules.length > 0 ? course.modules : starterCurriculum(course);
+}
+
+export function getDemoCompletedLessonIds(courseId: string): string[] {
+  const course = courses.find((item) => item.id === courseId);
+  if (!course) return [];
+
+  const lessons = courseModules(course).flatMap((module) => module.lessons);
+  const builtInCompleted = course.status === 'completed'
+    ? lessons.map((lesson) => lesson.id)
+    : lessons.filter((lesson) => lesson.completed).map((lesson) => lesson.id);
+  const savedCompleted = readSavedProgress()[courseId] ?? [];
+  return [...new Set([...builtInCompleted, ...savedCompleted])];
+}
+
+export function saveDemoLessonCompletion(courseId: string, lessonId: string, completed: boolean): void {
+  if (typeof window === 'undefined') return;
+  const progress = readSavedProgress();
+  const lessonIds = new Set(progress[courseId] ?? []);
+  if (completed) lessonIds.add(lessonId);
+  else lessonIds.delete(lessonId);
+  progress[courseId] = [...lessonIds];
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+}
+
 function withCourseExperience(course: Course): Course {
+  const modules = courseModules(course);
+  const lessons = modules.flatMap((module) => module.lessons);
+  const completedIds = new Set(getDemoCompletedLessonIds(course.id));
+  const completedCount = lessons.filter((lesson) => completedIds.has(lesson.id)).length;
+  const progress = lessons.length > 0 ? Math.round((completedCount / lessons.length) * 100) : course.progress;
+  const complete = lessons.length > 0 && completedCount === lessons.length;
   const enrolled = isCourseEnrolled(course);
+
   return {
     ...course,
-    status: course.status === 'not-started' && enrolled ? 'in-progress' : course.status,
-    modules: course.modules.length > 0 ? course.modules : starterCurriculum(course),
+    status: complete ? 'completed' : course.status === 'not-started' && enrolled ? 'in-progress' : course.status,
+    progress,
+    modules,
   };
+}
+
+export function getStudentCourses(): Course[] {
+  return courses.map(withCourseExperience);
+}
+
+export function getCourseById(courseId: string): Course | undefined {
+  const course = courses.find((item) => item.id === courseId);
+  return course ? withCourseExperience(course) : undefined;
 }
 
 export function getCourseBySlug(slug: string): Course | undefined {
