@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/providers/auth-provider';
 
 interface ProgressRow {
@@ -11,9 +11,10 @@ export function useLessonProgress(courseId: string) {
   const { user } = useAuth();
   const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const channelSuffix = useRef(Math.random().toString(36).slice(2)).current;
 
   useEffect(() => {
-    if (!user || !courseId) {
+    if (!user || !courseId || !isSupabaseConfigured) {
       setLoading(false);
       return;
     }
@@ -40,9 +41,9 @@ export function useLessonProgress(courseId: string) {
       }
     })();
 
-    // Realtime: sync progress changes from other devices/sessions
+    // Each card using this hook needs a distinct realtime channel.
     const channel = supabase
-      .channel(`lesson_progress_${courseId}_${user.id}`)
+      .channel(`lesson_progress_${courseId}_${user.id}_${channelSuffix}`)
       .on('postgres_changes',
         {
           event: '*',
@@ -76,7 +77,7 @@ export function useLessonProgress(courseId: string) {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [user, courseId]);
+  }, [user, courseId, channelSuffix]);
 
   const toggleLesson = useCallback(
     async (lessonId: string, completed: boolean) => {
@@ -88,6 +89,9 @@ export function useLessonProgress(courseId: string) {
         else next.delete(lessonId);
         return next;
       });
+
+      // Keep the dashboard interactive in preview/demo mode.
+      if (!isSupabaseConfigured) return;
 
       try {
         const { error } = await supabase
