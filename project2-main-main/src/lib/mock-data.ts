@@ -739,6 +739,7 @@ export const adminNavGroups = [
       { label: 'Dashboard', to: '/admin/dashboard', icon: 'LayoutDashboard' },
       { label: 'Users', to: '/admin/users', icon: 'Users' },
       { label: 'Courses', to: '/admin/courses', icon: 'BookOpen' },
+      { label: 'Course Feedback', to: '/admin/feedback', icon: 'MessageSquare' },
     ],
   },
   {
