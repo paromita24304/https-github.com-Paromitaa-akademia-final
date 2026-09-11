@@ -27,6 +27,7 @@ import { InstructorGradingPage } from '@/pages/instructor-grading';
 import { InstructorStudentsPage } from '@/pages/instructor-students';
 import { InstructorDiscussionsPage } from '@/pages/instructor-discussions';
 import { InstructorAiToolsPage } from '@/pages/instructor-ai-tools';
+import { CourseFeedbackPage } from '@/pages/course-feedback';
 
 export default function App() {
   return (
@@ -78,6 +79,7 @@ export default function App() {
                 <Route path="students" element={<InstructorStudentsPage />} />
                 <Route path="discussions" element={<InstructorDiscussionsPage />} />
                 <Route path="ai-tools" element={<InstructorAiToolsPage />} />
+                <Route path="feedback" element={<CourseFeedbackPage />} />
                 <Route
                   path="upload"
                   element={
@@ -97,6 +99,7 @@ export default function App() {
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="feedback" element={<CourseFeedbackPage />} />
                 <Route
                   path="users"
                   element={
