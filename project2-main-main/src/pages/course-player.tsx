@@ -34,7 +34,7 @@ import { VideoPlayer } from '@/components/player/video-player';
 import { PdfViewer } from '@/components/player/pdf-viewer';
 import { NotesPanel } from '@/components/player/notes-panel';
 import { CourseMessaging } from '@/components/player/course-messaging';
-import { getCourseBySlug, getAllLessons, getLessonById, isLessonUnlocked } from '@/lib/course-utils';
+import { enrollInCourse, getCourseBySlug, getAllLessons, getLessonById, isLessonUnlocked } from '@/lib/course-utils';
 import { useLessonProgress } from '@/hooks/use-lesson-progress';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -62,6 +62,10 @@ export function CoursePlayerPage() {
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const course = slug ? getCourseBySlug(slug) : undefined;
+
+  useEffect(() => {
+    if (course) enrollInCourse(course.id);
+  }, [course?.id]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(true);
