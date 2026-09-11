@@ -45,6 +45,9 @@ func main() {
 	http.HandleFunc("/api/register", enableCORS(handlers.Register))
 	http.HandleFunc("/api/login", enableCORS(handlers.Login))
 	http.HandleFunc("/api/change-password", enableCORS(handlers.ChangePassword))
+	http.HandleFunc("/api/student/enrollments", enableCORS(handlers.StudentEnrollment))
+	http.HandleFunc("/api/student/progress", enableCORS(handlers.StudentProgress))
+	http.HandleFunc("/api/student/feedback", enableCORS(handlers.StudentFeedback))
 
 	port := os.Getenv("PORT")
 	if port == "" {
