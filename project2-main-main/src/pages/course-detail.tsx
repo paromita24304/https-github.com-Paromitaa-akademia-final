@@ -26,11 +26,16 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { getCourseBySlug, getAllLessons } from '@/lib/course-utils';
 import { formatNumber, formatDuration, initials } from '@/lib/format';
 import { useLessonProgress } from '@/hooks/use-lesson-progress';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/components/providers/auth-provider';
+import { saveCourseFeedback } from '@/lib/course-feedback';
+import { toast } from 'sonner';
 import type { Lesson } from '@/types';
 
 const lessonTypeIcon: Record<Lesson['type'], typeof Video> = {
@@ -49,6 +54,9 @@ const difficultyStyles: Record<string, string> = {
 
 export function CourseDetailPage() {
   const { slug } = useParams<{ slug: string }>();
+  const { user } = useAuth();
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackRating, setFeedbackRating] = useState(5);
   const course = slug ? getCourseBySlug(slug) : undefined;
   const { isCompleted, markComplete } = useLessonProgress(course?.id ?? '');
 
@@ -62,6 +70,24 @@ export function CourseDetailPage() {
   const progressPct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
   const firstLesson = allLessons[0];
   const isEnrolled = course.status !== 'not-started' || progressPct > 0;
+
+  const submitFeedback = () => {
+    if (!feedbackMessage.trim()) {
+      toast.error('Please write your feedback before submitting.');
+      return;
+    }
+
+    saveCourseFeedback({
+      courseId: course.id,
+      courseTitle: course.title,
+      instructorName: course.instructor.name,
+      studentName: user?.name ?? 'Student',
+      rating: feedbackRating,
+      message: feedbackMessage.trim(),
+    });
+    setFeedbackMessage('');
+    toast.success('Thank you — your feedback was sent to the instructor and admin.');
+  };
 
   return (
     <div className="animate-in-slide space-y-8">
@@ -286,6 +312,51 @@ export function CourseDetailPage() {
           })}
         </Accordion>
       </section>
+
+      {isEnrolled && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">Give feedback</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Your feedback is available to this course's instructor and the platform admin.
+            </p>
+            <div className="mt-5 space-y-4">
+              <div>
+                <Label>How would you rate this course?</Label>
+                <div className="mt-2 flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Button
+                      key={star}
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={() => setFeedbackRating(star)}
+                      aria-label={`Rate ${star} out of 5`}
+                    >
+                      <Star className={cn('h-5 w-5', star <= feedbackRating ? 'fill-warning text-warning' : 'text-muted-foreground')} />
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="course-feedback">Your feedback</Label>
+                <Textarea
+                  id="course-feedback"
+                  className="mt-2 min-h-28"
+                  value={feedbackMessage}
+                  onChange={(event) => setFeedbackMessage(event.target.value)}
+                  placeholder="Tell us what was helpful or what could be improved..."
+                />
+              </div>
+              <Button onClick={submitFeedback}>Submit feedback</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* What you'll master */}
       <section className="grid gap-6 lg:grid-cols-2">
