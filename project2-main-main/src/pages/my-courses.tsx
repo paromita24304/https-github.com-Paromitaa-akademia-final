@@ -75,7 +75,7 @@ export function MyCoursesPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <QuickStat icon={PlayCircle} label="Ongoing" value={ongoing.length} accent="text-primary bg-primary/10" />
         <QuickStat icon={CheckCircle2} label="Completed" value={completed.length} accent="text-success bg-success/10" />
-        <QuickStat icon={Lock} label="Pending" value={pending.length} accent="text-warning bg-warning/10" />
+        <QuickStat icon={Lock} label="Saved" value={pending.length} accent="text-warning bg-warning/10" />
         <QuickStat
           icon={Award}
           label="Certificates"
