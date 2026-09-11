@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { getDemoCompletedLessonIds, saveDemoLessonCompletion } from '@/lib/course-utils';
 import { useAuth } from '@/components/providers/auth-provider';
 
 interface ProgressRow {
@@ -9,12 +10,15 @@ interface ProgressRow {
 
 export function useLessonProgress(courseId: string) {
   const { user } = useAuth();
-  const [completedLessons, setCompletedLessons] = useState<Set<string>>(new Set());
+  const [completedLessons, setCompletedLessons] = useState<Set<string>>(
+    () => new Set(getDemoCompletedLessonIds(courseId))
+  );
   const [loading, setLoading] = useState(true);
   const channelSuffix = useRef(Math.random().toString(36).slice(2)).current;
 
   useEffect(() => {
     if (!user || !courseId || !isSupabaseConfigured) {
+      setCompletedLessons(new Set(getDemoCompletedLessonIds(courseId)));
       setLoading(false);
       return;
     }
@@ -90,8 +94,11 @@ export function useLessonProgress(courseId: string) {
         return next;
       });
 
-      // Keep the dashboard interactive in preview/demo mode.
-      if (!isSupabaseConfigured) return;
+      // Keep the dashboard interactive in preview/demo mode and remember progress.
+      if (!isSupabaseConfigured) {
+        saveDemoLessonCompletion(courseId, lessonId, completed);
+        return;
+      }
 
       try {
         const { error } = await supabase
